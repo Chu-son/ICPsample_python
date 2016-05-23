@@ -5,6 +5,11 @@ import numpy as np
 import numpy.matlib
 from numpy.random import *
 import matplotlib.pyplot as plt
+import os
+import random
+
+DIRPATH = u"C:\\Users\\user\\Documents\\なかむら\\つくばチャレンジ2015\\測定データ\\20151023130844\\"
+DIRPATH = u"C:\\Users\\user\\Documents\\なかむら\\つくばチャレンジ2015\\測定データ\\20160523201809\\"
 
 def ICPsample():
 
@@ -18,7 +23,7 @@ def ICPsample():
     # 点をランダムでばら撒く(t - 1の時の点群)
     # data1:2行nPoint列
     data1 = fieldLength * rand(2,nPoint) - fieldLength / 2
-    plt.scatter(data1[0,:],data1[1,:],marker = "o",color = "r",s = 60, label = "data1")
+    plt.scatter(data1[0,:],data1[1,:],marker = "o",color = "r",s = 60, label = "data1(before matching)")
 
     # data2 =  data1を移動させる & ノイズ付加
     # 回転方向 ＆ ノイズ付加
@@ -33,12 +38,13 @@ def ICPsample():
 
     # data1を移動させてdata2を作る
     data2 = t + A.dot(data1)
-    plt.scatter(data2[0,:],data2[1,:],marker = "x",color = "b",s = 60, label = "data2(before matching)")
+    plt.scatter(data2[0,:],data2[1,:],marker = "x",color = "b",s = 60, label = "data2")
 
     # ICPアルゴリズム data2とdata1のMatching
     # R:回転行列　t:併進ベクトル
     # R,T = icp(data1,data2)
-    R,T = ICPMatching(data1,data2)
+    R,T,matchData = ICPMatching(data2,data1)
+    plt.scatter(matchData[0,:],matchData[1,:],marker = "o",color = "g",s = 60, label = "data1(after matching)")
 
     #結果の表示
     print('True Motion [m m deg]:')
@@ -94,8 +100,8 @@ def ICPMatching(data1, data2):
             return
 
     print('Convergence:' + str( count ))
-    plt.scatter(data2[0,:],data2[1,:],marker = "x",color = "g",s = 60, label = "data2(after matching)")
-    return R , t
+    
+    return R , t , data2
 
 def FindNearestPoint(data1, data2):
     #data2に対するdata1の最近傍点のインデックスを計算する関数
@@ -151,6 +157,95 @@ def transposition(array):
     else:
         return array.T
 
+def getPcdList(dirPath):
+    pcdList = []
+    count = 0
+
+    for path in os.listdir(dirPath):
+        if ".pcd" in path:
+            pcdList.append(path)
+            count += 1
+
+    sortedPcdList = [0] * count
+    for path in pcdList:
+        sortedPcdList[ int(path[11:-4]) ] = path
+
+    return sortedPcdList
+
+def getPointCloudData(filePath):
+    pcd = open( DIRPATH + filePath , "r" )
+
+    retData = [[],[]]
+    headercount = 0
+    for line in pcd:
+        if headercount < 11:
+            headercount += 1
+            continue
+        
+        data = line.split(",")
+
+        if float(data[0]) == 0.0 and float( data[1]) == 0.0:continue
+        retData[0].append(float(data[0]))
+        retData[1].append(-float(data[1]))
+
+    return retData
+
+def adjustDataSize( data1 , data2 , max = 0):
+    data1_length = len(data1[0]) 
+    data2_length = len(data2[0])
+
+    print("Default data size:{},{}".format(data1_length,data2_length))
+
+    if data1_length > data2_length:
+        if max != 0 and data2_length > max:
+            return [random.sample(data1[0],max),
+                    random.sample(data1[1],max)] ,\
+                    [random.sample(data2[0],max),
+                    random.sample(data2[1],max)]
+        else:
+            return [random.sample(data1[0],data2_length),random.sample(data1[1],data2_length)] , data2
+    else:
+        if max != 0 and data1_length > max:
+            return [random.sample(data1[0],max),
+                    random.sample(data1[1],max)] ,\
+                    [random.sample(data2[0],max),
+                    random.sample(data2[1],max)]
+        else:
+            return data1 , [random.sample(data2[0],data1_length),random.sample(data2[1],data1_length)]
+
+def pcdICPsample(maxIndex):
+    print (DIRPATH)
+    pathList = getPcdList(DIRPATH)
+
+    print("Max Index : {} \n\n".format(maxIndex))
+
+    preData = getPointCloudData( pathList[0] )
+    #for index, path in enumerate(pathList):
+    for index in range(0,len(pathList),1):
+
+        if index == maxIndex:break
+        if index == 0:continue
+
+        print ("\nindex:",index)
+
+        #data = getPointCloudData( path )
+        data = getPointCloudData( pathList[index] )
+        try:
+            R,T,matchData = ICPMatching(np.array(data),np.array(preData))
+
+            #data1 , data2 = adjustDataSize(preData, data)
+            #print("Adjusted data size:{},{}".format(len(data1[0]),len(data1[0])))
+            #R,T,matchData = ICPMatching(np.array(data2),np.array(data1))
+
+            plt.scatter(matchData[0,:],matchData[1,:],marker = "o",color = "b",s = 10)
+        except TypeError:
+            pass
+
+        preData = data
+
+    plt.grid(True)
+    plt.show()
 
 if __name__ == "__main__":
-    ICPsample()
+    #ICPsample()
+    pcdICPsample( 30 )
