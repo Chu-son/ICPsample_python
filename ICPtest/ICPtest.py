@@ -7,9 +7,11 @@ from numpy.random import *
 import matplotlib.pyplot as plt
 import os
 import random
+from PIL import Image
 
 DIRPATH = u"C:\\Users\\user\\Documents\\なかむら\\つくばチャレンジ2015\\測定データ\\20151023130844\\"
-DIRPATH = u"C:\\Users\\user\\Documents\\なかむら\\つくばチャレンジ2015\\測定データ\\20160523201809\\"
+DIRPATH = u"C:\\Users\\user\\Documents\\なかむら\\つくばチャレンジ2015\\測定データ\\20160524154532\\"
+#DIRPATH = u"C:\\Users\\user\\Documents\\なかむら\\つくばチャレンジ2015\\測定データ\\20151017135820\\"
 
 def ICPsample():
 
@@ -63,7 +65,7 @@ def ICPsample():
     plt.legend(loc = "upper right")
     plt.show()
 
-def ICPMatching(data1, data2):
+def ICPMatching(data1, data2 , boundaryList = []):
     # ICPアルゴリズムによる、並進ベクトルと回転行列の計算を実施する関数
     # data1  =  [x(t)1 x(t)2 x(t)3 ...]
     # data2  =  [x(t + 1)1 x(t + 1)2 x(t + 1)3 ...]
@@ -82,7 +84,7 @@ def ICPMatching(data1, data2):
     while not(dError < EPS):
         count = count + 1
     
-        ii, error = FindNearestPoint(data1, data2)  #最近傍点探索
+        ii, error = FindNearestPoint(data1, data2, boundaryList)  #最近傍点探索
         R1, t1 = SVDMotionEstimation(data1, data2, ii)    #特異値分解による移動量推定
 
         #計算したRとtで点群とRとtの値を更新
@@ -103,12 +105,17 @@ def ICPMatching(data1, data2):
     
     return R , t , data2
 
-def FindNearestPoint(data1, data2):
+def FindNearestPoint(data1, data2 , boundaryList = []):
     #data2に対するdata1の最近傍点のインデックスを計算する関数
     m1 = data1.shape[1]
     m2 = data2.shape[1]
-    index = np.array([],dtype=np.integer)
+    index = [[],[]]
     error = 0
+
+    min = 100
+    max = 0
+    sum = 0.0
+    distList = []
 
     for i in range(m1):
         dx = data2 - np.matlib.repmat( transposition( data1[:,i] ), 1, m2 )
@@ -117,19 +124,30 @@ def FindNearestPoint(data1, data2):
         ii = np.argmin(dist)
         dist = np.min(dist)
         
-        index = np.r_[index,[ii]]
+        if min > dist:min = dist
+        if max < dist:max = dist
+        sum += dist
+        distList.append(dist)
+        if (len(boundaryList) != 0 and ii in boundaryList) or dist > 0.1:
+            continue
+        index[0].append(i)
+        index[1].append(ii)
         error = error + dist
 
+    #plt.hist(distList,bins = 50)
+    #plt.show()
+    #print("min:{},max:{},ave:{}".format(min,max,sum/m1))
     return index , error
 
 def SVDMotionEstimation(data1, data2, index):
     #特異値分解法による並進ベクトルと、回転行列の計算
 
+    #print("data size:{}=>{}".format(len(data1[0]),len(index[0])))
     #各点群の重心の計算
-    M  =  data1 
-    mm  =  np.c_[M.mean(1)]
-    S  =  data2[:,index.tolist()]
-    ms  = np.c_[S.mean(1)]
+    M = data1[:,index[0]]
+    mm = np.c_[M.mean(1)]
+    S = data2[:,index[1]]
+    ms = np.c_[S.mean(1)]
 
     #各点群を重心中心の座標系に変換
     Sshifted = np.array([S[0,:] - ms[0],
@@ -176,19 +194,31 @@ def getPointCloudData(filePath):
     pcd = open( DIRPATH + filePath , "r" )
 
     retData = [[],[]]
-    headercount = 0
-    for line in pcd:
-        if headercount < 11:
-            headercount += 1
+    boundaryData = []
+    boundaryFlag = False #ゴミ値がfalse
+
+    for index,line in enumerate( pcd ):
+        if index < 11:
             continue
         
         data = line.split(",")
 
-        if float(data[0]) == 0.0 and float( data[1]) == 0.0:continue
+        if float(data[0]) == 0.0 and float( data[1]) == 0.0:
+            if boundaryFlag:
+                boundaryFlag = not boundaryFlag
+                boundaryData.append(len(retData[0])-1)
+            continue
+        
+        #retData[0].append(+(float(data[0])-float(data[2])))
+        #retData[1].append(+(float(data[1])-float(data[0])))
         retData[0].append(float(data[0]))
-        retData[1].append(-float(data[1]))
+        retData[1].append(float(data[1]))
 
-    return retData
+        if not boundaryFlag:
+                boundaryFlag = not boundaryFlag
+                boundaryData.append(len(retData[0])-1)
+
+    return retData , boundaryData
 
 def adjustDataSize( data1 , data2 , max = 0):
     data1_length = len(data1[0]) 
@@ -213,39 +243,106 @@ def adjustDataSize( data1 , data2 , max = 0):
         else:
             return data1 , [random.sample(data2[0],data1_length),random.sample(data2[1],data1_length)]
 
-def pcdICPsample(maxIndex):
+def plotPoint2Image(data,img):
+    imgMap = img.load()
+    coefficient = 100.0 / 5.0
+    origin_x = img.size[0] / 2.0
+    origin_y = img.size[1] / 2.0
+    
+    for index in range(0,len(data[0])):
+        x = int(data[0][index] * coefficient + origin_x)
+        y = int(data[1][index] * coefficient + origin_y)
+        
+        if imgMap[x,y] != 250:
+           imgMap[x,y] += 50
+    return img
+
+def pcdICPsample(minIndex = 0,maxIndex = 0):
     print (DIRPATH)
     pathList = getPcdList(DIRPATH)
 
-    print("Max Index : {} \n\n".format(maxIndex))
+    if maxIndex == 0:
+        maxIndex = len(pathList)
 
-    preData = getPointCloudData( pathList[0] )
+    print("Index : {} ~ {} \n\n".format(minIndex,maxIndex))
+
+    preData, boundaryList = getPointCloudData( pathList[minIndex] )
+    preR = np.identity(2)
+    preT = np.zeros([2,1])
+
+    #plt.grid(True)
+    #fig, ax = plt.subplots(1, 1)
+    #fig = plt.figure()
+    #ax = fig.add_subplot(1,1,1)
+
+    #lines, = ax.plot(preData[0,:],preData[1,:],marker = "o",color = "b",s = 10)
+
+    img = Image.new("L",(600,600))
+
     #for index, path in enumerate(pathList):
-    for index in range(0,len(pathList),1):
-
-        if index == maxIndex:break
-        if index == 0:continue
-
+    for index in range(minIndex + 1,maxIndex,1):
         print ("\nindex:",index)
 
         #data = getPointCloudData( path )
-        data = getPointCloudData( pathList[index] )
-        try:
-            R,T,matchData = ICPMatching(np.array(data),np.array(preData))
+        data, boundaryList = getPointCloudData( pathList[index] )
+        #data = preR.dot( data )
+        #data = np.array([data[0] + preT[0],
+        #                  data[1] + preT[1]])
 
+        try:
+            #boundaryList = []
+            R,T,matchData = ICPMatching(np.array(preData),np.array(data),boundaryList)
+
+        except TypeError:
+            print("error")
+            continue
+
+        else:
             #data1 , data2 = adjustDataSize(preData, data)
             #print("Adjusted data size:{},{}".format(len(data1[0]),len(data1[0])))
             #R,T,matchData = ICPMatching(np.array(data2),np.array(data1))
 
+            #ax.scatter(matchData[0,:],matchData[1,:],marker = "o",color = "b",s = 10)
+            
+            #plt.scatter(matchData[0,:],matchData[1,:],marker = "o",color = "b",s = 10)
+            #lines.set_data(matchData[0,:],matchData[1,:],marker = "o",color = "b",s = 10)
+            #ax.set_xlim((x.min(), x.max()))
+            #ax.set_ylim((y.min(), y.max()))
+            #plt.pause(.01)
+
+            matchData = preR.dot( matchData )
+            matchData = np.array([matchData[0] + preT[0],
+                                  matchData[1] + preT[1]])
+            preR = R.dot( preR )
+            preT = R.dot( preT ) + T 
             plt.scatter(matchData[0,:],matchData[1,:],marker = "o",color = "b",s = 10)
-        except TypeError:
-            pass
+
+        img = plotPoint2Image(matchData,img)
+        ##img.show()
+        ##画像をarrayに変換
+        #im_list = np.asarray(img)
+        ##貼り付け
+        #plt.imshow(im_list)
+        #plt.gray()
+        ##表示
+        #plt.pause(.01)
+
+        #img2 = Image.new("L",(500,500))
+        #img2 = plotPoint2Image(data,img2)
+        #img2.show()
 
         preData = data
 
-    plt.grid(True)
+    img.show()
+
+    #画像をarrayに変換
+    im_list = np.asarray(img)
+    #貼り付け
+    plt.imshow(im_list)
+    plt.gray()
+    #表示
     plt.show()
 
 if __name__ == "__main__":
     #ICPsample()
-    pcdICPsample( 30 )
+    pcdICPsample( 35,40 )
