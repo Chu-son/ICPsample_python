@@ -127,7 +127,7 @@ def FindNearestPoint(data1, data2 , boundaryList = []):
         if max < dist:max = dist
         sum += dist
         distList.append(dist)
-        if (len(boundaryList) != 0 and ii in boundaryList) or dist > 0.1:
+        if (len(boundaryList) != 0 and ii in boundaryList[1]) or dist > 0.1:
             continue
         index[0].append(i)
         index[1].append(ii)
@@ -284,7 +284,9 @@ def pcdICPsample(minIndex = 0,maxIndex = 0):
 
     print("Index : {} ~ {} \n\n".format(minIndex,maxIndex))
 
-    preData, boundaryList = getPointCloudData( pathList[minIndex] )
+    boundaryList = [[],[]]
+
+    preData, boundaryList[0] = getPointCloudData( pathList[minIndex] )
     preR = np.identity(2)
     preT = np.zeros([2,1])
 
@@ -302,7 +304,7 @@ def pcdICPsample(minIndex = 0,maxIndex = 0):
         print ("\nindex:",index)
 
         #data = getPointCloudData( path )
-        data, boundaryList = getPointCloudData( pathList[index] )
+        data, boundaryList[1] = getPointCloudData( pathList[index] )
         print(boundaryList)
         #data = preR.dot( data )
         #data = np.array([data[0] + preT[0],
@@ -315,7 +317,6 @@ def pcdICPsample(minIndex = 0,maxIndex = 0):
         except TypeError:
             print("error")
             continue
-
         else:
             #data1 , data2 = adjustDataSize(preData, data)
             #print("Adjusted data size:{},{}".format(len(data1[0]),len(data1[0])))
@@ -334,6 +335,8 @@ def pcdICPsample(minIndex = 0,maxIndex = 0):
                                   matchData[1] + preT[1]])
             preR = R.dot( preR )
             preT = R.dot( preT ) + T 
+            boundaryList[0] = boundaryList[1]
+
             plt.scatter(matchData[0,:],matchData[1,:],marker = "o",color = "b",s = 10)
 
             print('Estimated Motion [m m deg]:')
