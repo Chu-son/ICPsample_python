@@ -11,6 +11,7 @@ from PIL import Image
 
 DIRPATH = u"C:\\Users\\user\\Documents\\なかむら\\つくばチャレンジ2015\\測定データ\\20160526230040\\"
 #DIRPATH = u"C:\\Users\\user\\Documents\\なかむら\\つくばチャレンジ2015\\測定データ\\20160526162818\\"
+DIRPATH = "C:\\Users\\KOSUKE\\Source\\Repos\\ICPsample_python\\20160526230040\\"
 
 def ICPsample():
 
@@ -64,7 +65,7 @@ def ICPsample():
     plt.legend(loc = "upper right")
     plt.show()
 
-def ICPMatching(data1, data2 , boundaryList = []):
+def ICPMatching(data1, data2 , boundaryList = [[],[]]):
     # ICPアルゴリズムによる、並進ベクトルと回転行列の計算を実施する関数
     # data1  =  [x(t)1 x(t)2 x(t)3 ...]
     # data2  =  [x(t + 1)1 x(t + 1)2 x(t + 1)3 ...]
@@ -81,6 +82,7 @@ def ICPMatching(data1, data2 , boundaryList = []):
     t = np.zeros([2,1])  #並進ベクトル
 
     while not(dError < EPS):
+    #while False:
         count = count + 1
     
         ii, error = FindNearestPoint(data1, data2, boundaryList)  #最近傍点探索
@@ -104,7 +106,7 @@ def ICPMatching(data1, data2 , boundaryList = []):
     
     return R , t , data2 , preError
 
-def FindNearestPoint(data1, data2 , boundaryList = []):
+def FindNearestPoint(data1, data2 , boundaryList = [[],[]]):
     #data2に対するdata1の最近傍点のインデックスを計算する関数
     m1 = data1.shape[1]
     m2 = data2.shape[1]
@@ -127,8 +129,10 @@ def FindNearestPoint(data1, data2 , boundaryList = []):
         if max < dist:max = dist
         sum += dist
         distList.append(dist)
-        if (len(boundaryList) != 0 and ii in boundaryList[1]) or dist > 0.1:
+
+        if (len(boundaryList[0]) != 0 and ii in boundaryList[1]) or dist > 0.1:
             continue
+
         index[0].append(i)
         index[1].append(ii)
         error = error + dist
@@ -141,9 +145,7 @@ def FindNearestPoint(data1, data2 , boundaryList = []):
 def SVDMotionEstimation(data1, data2, index):
     #特異値分解法による並進ベクトルと、回転行列の計算
 
-    print("data size:{}=>{}".format(len(data1[0]),len(index[0])))
-    if len(index[0]) == 0:
-        return np.identity(2), np.zeros([2,1])
+    #print("data size:{}=>{}".format(len(data1[0]),len(index[0])))
     #各点群の重心の計算
     M = data1[:,index[0]]
     mm = np.c_[M.mean(1)]
@@ -297,7 +299,7 @@ def pcdICPsample(minIndex = 0,maxIndex = 0):
 
     #lines, = ax.plot(preData[0,:],preData[1,:],marker = "o",color = "b",s = 10)
 
-    img = Image.new("L",(600,600))
+    img = Image.new("L",(400,400))
 
     #for index, path in enumerate(pathList):
     for index in range(minIndex + 1,maxIndex,1):
@@ -306,12 +308,12 @@ def pcdICPsample(minIndex = 0,maxIndex = 0):
         #data = getPointCloudData( path )
         data, boundaryList[1] = getPointCloudData( pathList[index] )
         print(boundaryList)
-        #data = preR.dot( data )
-        #data = np.array([data[0] + preT[0],
-        #                  data[1] + preT[1]])
+        data = preR.dot( data )
+        data = np.array([data[0] + preT[0],
+                          data[1] + preT[1]])
 
         try:
-            #boundaryList = []
+            #boundaryList = [[],[]]
             R,T,matchData,error = ICPMatching(np.array(preData),np.array(data),boundaryList)
 
         except TypeError:
@@ -330,9 +332,9 @@ def pcdICPsample(minIndex = 0,maxIndex = 0):
             #ax.set_ylim((y.min(), y.max()))
             #plt.pause(.01)
 
-            matchData = preR.dot( matchData )
-            matchData = np.array([matchData[0] + preT[0],
-                                  matchData[1] + preT[1]])
+            #matchData = preR.dot( matchData )
+            #matchData = np.array([matchData[0] + preT[0],
+            #                      matchData[1] + preT[1]])
             preR = R.dot( preR )
             preT = R.dot( preT ) + T 
             boundaryList[0] = boundaryList[1]
@@ -359,7 +361,7 @@ def pcdICPsample(minIndex = 0,maxIndex = 0):
         #img2 = plotPoint2Image(data,img2)
         #img2.show()
 
-        preData = data
+        preData = matchData
 
     img.show()
 
@@ -369,8 +371,9 @@ def pcdICPsample(minIndex = 0,maxIndex = 0):
     plt.imshow(im_list)
     plt.gray()
     #表示
-    plt.show()
+    #plt.show()
 
 if __name__ == "__main__":
     #ICPsample()
-    pcdICPsample( 10,20 )
+    pcdICPsample(  )
+    #for i in range(11,20): pcdICPsample(i,i+3)
