@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import os
 import random
 from PIL import Image
+from iterative_closest_point import *
 
 DIRPATH = "C:\\Users\\user\\Documents\\なかむら\\つくばチャレンジ2015\\測定データ\\20160526230040\\"
 #DIRPATH = "C:\\Users\\user\\Documents\\なかむら\\つくばチャレンジ2015\\測定データ\\20160526162818\\"
@@ -326,7 +327,7 @@ def pcdICPsample(minIndex = 0,maxIndex = 0):
         data = np.array([data[0] + preT[0],
                           data[1] + preT[1]])
 
-        #ICPMatchingがstr型("Max Iteration")を返す場合があるためtryで囲む
+        #ICPMatchingがnullを返す場合があるためtryで囲む
         try:
             #boundaryList = [[],[]] #有効にすると境界を無視しない
             #gradientList = [[],[]] #有効にすると勾配を無視
@@ -374,7 +375,71 @@ def pcdICPsample(minIndex = 0,maxIndex = 0):
     #結果表示
     #plt.show()
 
+def MyICPsample(minIndex = 0,maxIndex = 0):
+    print (DIRPATH)
+    pathList = getPcdList(DIRPATH)
+
+    if maxIndex == 0 or maxIndex > len(pathList):
+        maxIndex = len(pathList)
+
+    print("Index : {} ~ {} \n\n".format(minIndex,maxIndex))
+
+    #変数宣言および初期化
+    boundaryList = [[],[]]
+    gradientList = [[],[]]
+    icp = MyIterativeClosestPoint()
+    img = Image.new("L",(400,400))
+
+    #for index, path in enumerate(pathList):
+    for index in range(minIndex + 1,maxIndex,1):
+        print ("\nindex:",index)
+
+        #ファイルから点群の読み込み
+        data, boundaryList[1], gradientList[1] = getPointCloudData( pathList[index] )
+        print(boundaryList)
+
+        #ICPMatchingがnullを返す場合があるためtryで囲む
+        try:
+            #boundaryList = [[],[]] #有効にすると境界を無視しない
+            #gradientList = [[],[]] #有効にすると勾配を無視
+            matchData = icp.ICPMatching(data)
+
+        except TypeError:
+            print("error")
+            continue
+        else:
+            #もろもろ更新
+            boundaryList[0] = boundaryList[1]
+            gradientList[0] = gradientList[1]
+
+        img = plotPoint2Image(matchData,img)
+
+        #画像をarrayに変換
+        im_list = np.asarray(img)
+        #貼り付け
+        plt.imshow(im_list)
+        plt.gray()
+        #表示
+        plt.pause(.01)
+
+        ###１周分の点を表示
+        #img2 = Image.new("L",(500,500))
+        #img2 = plotPoint2Image(data,img2)
+        #img2.show()
+
+    img.show()
+
+    #画像をarrayに変換
+    im_list = np.asarray(img)
+    #貼り付け
+    plt.imshow(im_list)
+    plt.gray()
+    #結果表示
+    #plt.show()
+
 if __name__ == "__main__":
     #ICPsample()
-    pcdICPsample(  )
+    #pcdICPsample(  )
     #for i in range(0,10): pcdICPsample(i,i+3)
+
+    MyICPsample( 0,15 )
