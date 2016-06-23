@@ -39,7 +39,7 @@ class MyIterativeClosestPoint:
 
         #ICP パラメータ
         preError = 0    #一つ前のイタレーションのerror値
-        dError = 1000   #エラー値の差分
+        dError = 10000   #エラー値の差分
         EPS = 0.0001    #収束判定値
         maxIter = 500   #最大イタレーション数
         count = 0       #ループカウンタ
@@ -142,7 +142,7 @@ class MyIterativeClosestPoint:
             return np.c_[array]
         else:
             return array.T
-
+    #境界のリストを作成
     def make_boundary_list(self):
         self.__pre_boundaryList = self.__now_boundaryList
 
@@ -174,7 +174,8 @@ class MyIterativeClosestPoint:
             if index in self.__now_boundaryList or index == 0 or index == len(self.__new_data_array[0])-1:
                 self.__now_gradientList.append(-1.0)
             else:
-                self.__now_gradientList.append(self.calcGradient(
+                self.__now_gradientList.append(
+                    self.calcGradient(
                     [self.__new_data_array[0][index] - self.__new_data_array[0][index - 1],
                      self.__new_data_array[1][index] - self.__new_data_array[1][index - 1]],
                     [self.__new_data_array[0][index + 1] - self.__new_data_array[0][index],
